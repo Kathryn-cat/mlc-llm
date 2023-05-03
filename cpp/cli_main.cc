@@ -8,6 +8,7 @@
 // the same set of operations can be implemented in other languages
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
 #include <argparse/argparse.hpp>
@@ -120,13 +121,15 @@ std::vector<std::string> CountUTF8(const std::string& s) {
   return std::move(ret);
 }
 
-void PrintSpecialCommands() {
+void PrintSpecialCommands(bool use_image = false) {
+  std::string upload_image =
+      use_image ? "  /upload /path/to/img   upload a new image to start a new conversation\n" : "";
   std::cout << "You can use the following special commands:\n"
             << "  /help    print the special commands\n"
             << "  /exit    quit the cli\n"
             << "  /stats   print out the latest stats (token/sec)\n"
             << "  /reset   restart a fresh chat\n"
-            << std::endl
+            << upload_image << std::endl
             << std::flush;
 }
 
@@ -144,6 +147,7 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
           int max_window_size = 768, int mean_gen_len = 128, double shift_fill_factor = 0.3) {
   // conv template detect
   std::string conv_template;
+  bool enable_upload = false;
   if (model.find("vicuna") == 0) {
     conv_template = "vicuna_v1.1";
   } else if (model.find("dolly-") == 0) {
@@ -152,6 +156,9 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
     conv_template = "stablelm";
   } else if (model.find("moss") == 0) {
     conv_template = "moss";
+  } else if (model.find("minigpt") == 0) {
+    conv_template = "minigpt";
+    enable_upload = true;
   } else {
     LOG(FATAL) << "Do not recognize model name " << model;
   }
@@ -160,6 +167,7 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
   chat_mod.GetFunction("init_chat")(model, conv_template, max_gen_len, temperature, top_p,
                                     stream_interval, max_window_size, mean_gen_len,
                                     shift_fill_factor);
+
   auto f_stop = chat_mod.GetFunction("stopped");
   auto f_encode = chat_mod.GetFunction("encode");
   auto f_decode = chat_mod.GetFunction("decode");
@@ -184,10 +192,16 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
       std::cout << stats_text << std::endl << std::flush;
       continue;
     } else if (inp.substr(0, 5) == "/help") {
-      PrintSpecialCommands();
+      PrintSpecialCommands(enable_upload);
       continue;
     }
 
+    // convert uploaded image into tvm ndarray
+    if (enable_upload && inp.substr(0, 7) == "/upload") {
+      std::cout << "UPLOADED IMAGE" << std::endl << std::flush;
+    }
+
+    /*
     std::string prev_printed = "";
     auto printed_UTF8_chars = CountUTF8(prev_printed);
 
@@ -220,6 +234,7 @@ void Chat(tvm::runtime::Module chat_mod, const std::string& model, int64_t max_g
         printed_UTF8_chars = std::move(cur_UTF8_chars);
       }
     }
+    */
 
     std::cout << std::endl << std::flush;
   }
@@ -249,14 +264,19 @@ int main(int argc, char* argv[]) {
   int device_id = args.get<int>("--device_id");
   DLDevice device = GetDevice(device_name, device_id);
   std::string artifact_path = args.get<std::string>("--artifact-path");
-  std::string model = args.get<std::string>("--model");
   std::string dtype = args.get<std::string>("--dtype");
-  std::string params = args.get<std::string>("--params");
+  // TODO: does not handle params when model has multiple components
+  std::vector<std::string> params = {args.get<std::string>("--params")};
 
-  std::string lib_name = model + "_" + device_name;
+  std::string user_specified_model = args.get<std::string>("--model");
+  int num_components = user_specified_model == "minigpt4-7b" ? 2 : 1;
+  std::vector<std::string> models = {user_specified_model};
+  if (num_components > 1) {
+    models.push_back("vicuna-v1-7b");
+  }
+
   std::string arch_suffix = GetArchSuffix();
-
-  std::optional<std::filesystem::path> lib_path_opt;
+  std::vector<std::filesystem::path> lib_paths;
   std::vector<std::string> dtype_candidates;
 
   if (dtype == "auto") {
@@ -264,75 +284,107 @@ int main(int argc, char* argv[]) {
   } else {
     dtype_candidates = {dtype};
   }
-  std::optional<std::filesystem::path> lib_path;
-  for (auto candidate : dtype_candidates) {
-    std::vector<std::string> search_paths = {artifact_path + "/" + model + "/" + candidate,
-                                             artifact_path + "/models/" + model,
-                                             artifact_path + "/" + model, artifact_path + "/lib"};
-    // search for lib_x86_64 and lib
-    lib_path_opt = FindFile(search_paths,
-                            {lib_name + arch_suffix + "_" + candidate, lib_name + "_" + candidate},
-                            GetLibSuffixes());
-    if (lib_path_opt) {
-      dtype = candidate;
+
+  // search for lib_x86_64 and lib
+  for (std::string model : models) {
+    std::optional<std::filesystem::path> lib_path;
+    std::string lib_name = model + "_" + device_name;
+    for (auto candidate : dtype_candidates) {
+      if (dtype != "auto" && dtype != candidate) {
+        continue;
+      }
+      std::vector<std::string> search_paths = {artifact_path + "/" + model + "/" + candidate,
+                                               artifact_path + "/models/" + model,
+                                               artifact_path + "/" + model, artifact_path + "/lib"};
+      lib_path = FindFile(search_paths,
+                          {lib_name + arch_suffix + "_" + candidate, lib_name + "_" + candidate},
+                          GetLibSuffixes());
+      if (lib_path) {
+        dtype = candidate;
+        break;
+      }
+    }
+    if (!lib_path) {
+      std::cerr << "Cannot find " << model << " lib in preferred path \"" << artifact_path << "/"
+                << model << "/" << dtype_candidates[0] << "/" << lib_name << "_"
+                << dtype_candidates[0] << GetLibSuffixes()[0] << "\" or other candidate paths";
+      return 1;
+    }
+    lib_paths.push_back(lib_path.value());
+    std::cout << "Use lib " << lib_path.value().string() << std::endl;
+  }
+
+  std::vector<std::string> model_paths = {};
+  for (auto lib_path : lib_paths) {
+    auto model_path = lib_path.parent_path().string();
+    model_paths.push_back(model_path);
+  }
+
+  // get artifact path lib name
+  std::optional<std::filesystem::path> tokenizer_path_opt;
+  for (int i = 0; i < int(model_paths.size()); i++) {
+    tokenizer_path_opt = FindFile(
+        {
+            model_paths[i],
+            artifact_path + "/models/" + models[i],
+            artifact_path + "/" + models[i],
+        },
+        {"tokenizer"}, {".model", ".json"});
+    if (tokenizer_path_opt) {
       break;
     }
   }
-  if (!lib_path_opt) {
-    std::cerr << "Cannot find " << model << " lib in preferred path \"" << artifact_path << "/"
-              << model << "/" << dtype_candidates[0] << "/" << lib_name << "_"
-              << dtype_candidates[0] << GetLibSuffixes()[0] << "\" or other candidate paths";
-    return 1;
-  }
-  std::cout << "Use lib " << lib_path_opt.value().string() << std::endl;
-  std::string model_path = lib_path_opt.value().parent_path().string();
-  // get artifact path lib name
-  auto tokenizer_path_opt = FindFile(
-      {
-          model_path,
-          artifact_path + "/models/" + model,
-          artifact_path + "/" + model,
-      },
-      {"tokenizer"}, {".model", ".json"});
-
   if (!tokenizer_path_opt) {
-    std::cerr << "Cannot find tokenizer{.model/.json} in " << model_path;
+    std::cerr << "Cannot find tokenizer{.model/.json} in " << model_paths[0] << " etc.";
     return 1;
   }
+  std::cout << "Use tokenizer " << tokenizer_path_opt.value().string() << std::endl;
 
-  if (params == "auto") {
-    auto params_json_opt = FindFile(
-        {
-            model_path + "/params",
-            artifact_path + "/" + model + "/" + dtype,
-            artifact_path + "/" + model,
-        },
-        {"ndarray-cache"}, {".json"});
-    if (!params_json_opt) {
-      std::cerr << "Cannot find ndarray-cache.json for params in preferred path \"" << model_path
-                << "/params\", \"" << artifact_path << "/" + model << "/" + dtype << "\", and \""
-                << artifact_path << "/" << model << "\".";
-      return 1;
+  // get parameters
+  if (params[0] == "auto") {
+    params = {};
+    for (int i = 0; i < int(model_paths.size()); i++) {
+      auto params_json_opt = FindFile(
+          {
+              model_paths[i] + "/params",
+              artifact_path + "/" + models[i] + "/" + dtype,
+              artifact_path + "/" + models[i],
+          },
+          {"ndarray-cache"}, {".json"});
+      if (!params_json_opt) {
+        std::cerr << "Cannot find ndarray-cache.json for params in preferred path \""
+                  << model_paths[i] << "/params\", \"" << artifact_path << "/" + models[i]
+                  << "/" + dtype << "\", and \"" << artifact_path << "/" << models[i] << "\".";
+        return 1;
+      }
+      std::cout << "Using params " << params_json_opt.value().string() << std::endl;
+      std::string params_json = params_json_opt.value().string();
+      params.push_back(params_json.substr(0, params_json.length() - 18));
     }
-    std::string params_json = params_json_opt.value().string();
-    params = params_json.substr(0, params_json.length() - 18);
-  } else if (!FindFile({params}, {"ndarray-cache"}, {".json"})) {
-    std::cerr << "Cannot find params/ndarray-cache.json in " << model_path;
+  } else if (!FindFile({params[0]}, {"ndarray-cache"}, {".json"})) {
+    std::cerr << "Cannot find params/ndarray-cache.json in " << model_paths[0];
     return 1;
   }
 
   try {
-    auto lib = Module::LoadFromFile(lib_path_opt.value().string());
+    Array<tvm::runtime::Module> lib;
+    for (auto lib_path : lib_paths) {
+      lib.push_back(Module::LoadFromFile(lib_path.string()));
+    }
     std::cout << "Initializing the chat module..." << std::endl;
+    Array<tvm::runtime::String> params_arr = {};
+    for (auto param : params) {
+      params_arr.push_back(param);
+    }
     Module chat_mod =
-        mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params, device);
+        mlc::llm::CreateChatModule(lib, tokenizer_path_opt.value().string(), params_arr, device);
     std::cout << "Finish loading" << std::endl;
-    PrintSpecialCommands();
+    PrintSpecialCommands(user_specified_model.find("minigpt") == 0);
 
     if (args.get<bool>("--evaluate")) {
       chat_mod.GetFunction("evaluate")();
     } else {
-      Chat(chat_mod, model);
+      Chat(chat_mod, user_specified_model);
     }
   } catch (const std::runtime_error& err) {
     // catch exception so error message

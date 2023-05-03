@@ -6,11 +6,12 @@ from typing import List
 
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import relax
 
 import mlc_llm
 from mlc_llm import utils
-from mlc_llm.relax_model import gpt_neox, llama, moss
+from mlc_llm.relax_model import gpt_neox, llama, minigpt, moss
 
 
 def _parse_args():
@@ -106,7 +107,8 @@ def mod_transform_before_build(
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
-    model_names = ["encoding", "decoding", "create_kv_cache"]
+    # model_names = ["encoding", "decoding", "create_kv_cache"]
+    model_names = ["encoding"]
 
     if not args.no_quantize:
         mod = mlc_llm.transform.GroupQuantize(
@@ -128,7 +130,7 @@ def mod_transform_before_build(
 
     new_params = utils.transform_params(mod_transform, model_params)
     utils.save_params(new_params, args.artifact_path)
-    return mod_deploy
+    return mod_deploy, new_params
 
 
 def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
@@ -143,9 +145,9 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             db = ms.database.MemoryDatabase()
         with db, tvm.target.Target("apple/m1-gpu-restricted"):
             mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
-            mod_deploy = mlc_llm.transform.DispatchTIROperator(args.model_category)(
-                mod_deploy
-            )
+            # mod_deploy = mlc_llm.transform.DispatchTIROperator(args.model_category)(
+            #    mod_deploy
+            # )
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
@@ -162,6 +164,12 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
     lib_path = os.path.join(args.artifact_path, output_filename)
     ex.export_library(lib_path, **args.export_kwargs)
     print(f"Finish exporting to {lib_path}")
+
+    # TODO: for testing correctness
+    executable = tvm.runtime.load_module(lib_path)
+    vm = relax.vm.VirtualMachine(executable, tvm.cuda())
+
+    return vm
 
 
 def dump_split_tir(mod: tvm.IRModule):
@@ -199,9 +207,11 @@ if __name__ == "__main__":
             mod, params = gpt_neox.get_model(ARGS.model, ARGS.model_path, ARGS.dtype)
         elif ARGS.model_category == "moss":
             mod, params = moss.get_model(ARGS)
+        elif ARGS.model_category == "minigpt":
+            mod, params = minigpt.get_model(ARGS)
         else:
             raise ValueError(f"Model {ARGS.model} not supported")
-        mod = mod_transform_before_build(mod, params, ARGS)
+        mod, new_params = mod_transform_before_build(mod, params, ARGS)
         with open(cache_path, "wb") as outfile:
             pickle.dump(mod, outfile)
         print(f"Save a cached module to {cache_path}.")
@@ -212,4 +222,31 @@ if __name__ == "__main__":
         )
         mod = pickle.load(open(cache_path, "rb"))
     dump_split_tir(mod)
-    build(mod, ARGS)
+    vm = build(mod, ARGS)
+
+    # TODO: for testing correctness
+    import torch
+
+    torch.manual_seed(0)
+    input = torch.rand(1, 3, 224, 224).to(torch.float16)
+    new_params_cuda = [tvm.nd.array(x, tvm.cuda()) for x in new_params]
+    args_tvm = [tvm.nd.array(input, tvm.cuda()), new_params_cuda]
+
+    res = vm["encoding"](*args_tvm)
+
+    print(f"res: {res}")
+
+    apply_tuning = False
+
+    if apply_tuning:
+        # apply tuning to get an optimized version
+        target = tvm.target.Target("nvidia/geforce-rtx-3090")
+        ms.relax_integration.tune_relax(
+            mod=mod,
+            target=target,
+            params={},
+            work_dir="tuned_minigpt4",
+            num_trials_per_iter=32,
+            max_trials_global=40000,
+            max_trials_per_task=8,
+        )

@@ -32,7 +32,13 @@ using namespace tvm::runtime;
  */
 class Conversation {
  public:
-  enum class SeparatorStyle { kSingle = 0, kTwo = 1, kDolly = 2, kOasst_Pythia = 3, kMOSS = 4 };
+  enum class SeparatorStyle {
+    kSingle = 0,
+    kTwo = 1,
+    kDolly = 2,
+    kOasst_Pythia = 3,
+    kMOSS = 4,
+  };
 
   static Conversation Create(const std::string& template_name = "vicuna_v1.1") {
     if (template_name == "vicuna_v1.1") {
@@ -164,6 +170,18 @@ class Conversation {
           /*offset=*/0,
           /*separator_style=*/Conversation::SeparatorStyle::kMOSS,
           /*sep=*/"<eoh>",
+          /*sep2=*/"");
+    } else if (template_name == "minigpt") {
+      return Conversation(
+          /*conv_template=*/"minigpt",
+          /*system=*/
+          "Give the following image: <Img>ImageContent</Img>. "
+          "You will be able to see the image once I provide it to you. Please answer my questions.",
+          /*roles=*/{"Human", "Assistant"},
+          /*messages=*/{},
+          /*offset=*/2,
+          /*separator_style=*/Conversation::SeparatorStyle::kSingle,
+          /*sep=*/"###",
           /*sep2=*/"");
     } else {
       LOG(FATAL) << "Unknown conversation template: " << template_name;
@@ -637,7 +655,7 @@ class LLMChatModule : public ModuleNode {
 
     next_token_ = this->SampleFromLogitsOnCPU();
 
-    if (model_name_.find("vicuna") == 0) {
+    if (model_name_.find("vicuna") == 0 || model_name_.find("minigpt") == 0) {
       add_bos_ = false;
     }
   }
@@ -763,8 +781,8 @@ class LLMChatModule : public ModuleNode {
    * \param param_path The root path to params
    * \param device The device to run the mdoel on
    */
-  void Init(Module executable, const std::string& tokenizer_path, const std::string& param_path,
-            tvm::Device device) {
+  void Init(Array<Module> executable, const std::string& tokenizer_path,
+            const Array<tvm::runtime::String> param_path, tvm::Device device) {
     // setup members
     device_ = device;
 
@@ -774,21 +792,34 @@ class LLMChatModule : public ModuleNode {
     // load in nd-arracy cache
     const PackedFunc* fload_cache = tvm::runtime::Registry::Get("vm.builtin.ndarray_cache.load");
     ICHECK(fload_cache) << "TVM runtime cannot find vm.builtin.ndarray_cache.load";
-    (*fload_cache)(param_path, static_cast<int32_t>(device_.device_type), device.device_id);
+    for (auto param : param_path) {
+      (*fload_cache)(param, static_cast<int32_t>(device_.device_type), device.device_id);
+    }
 
     // initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    vm_ = executable->GetFunction("vm_load_executable")();
-    vm_->GetFunction("vm_initialization")(static_cast<int>(device.device_type), device.device_id,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled),
-                                          static_cast<int>(kDLCPU), 0,
-                                          static_cast<int>(relax_vm::AllocatorType::kPooled));
-
-    encoding_func_ = vm_->GetFunction("encoding");
-    decoding_func_ = vm_->GetFunction("decoding");
-    encoding_without_cache_func_ = vm_->GetFunction("encoding_without_cache");
-    auto kv_cache_func = vm_->GetFunction("create_kv_cache");
+    // TODO
+    for (int i = 0; i < int(executable.size()); i++) {
+      Module exec = executable[i];
+      Module vm = exec->GetFunction("vm_load_executable")();
+      vm->GetFunction("vm_initialization")(static_cast<int>(device.device_type), device.device_id,
+                                           static_cast<int>(relax_vm::AllocatorType::kPooled),
+                                           static_cast<int>(kDLCPU), 0,
+                                           static_cast<int>(relax_vm::AllocatorType::kPooled));
+      // TODO: when a model has multiple components, we assume it contains multiple encoding
+      // parts, but only one decoding part. can change later
+      auto encoding_func = vm->GetFunction("encoding");
+      if (i == int(executable.size() - 1)) {
+        decoding_func_ = vm->GetFunction("decoding");
+        encoding_without_cache_func_ = vm->GetFunction("encoding_without_cache");
+        auto kv_cache_func = vm->GetFunction("create_kv_cache");
+        // KV cache creation
+        kv_cache_ = vm->GetFunction("create_kv_cache")();
+      }
+      encoding_func_.push_back(encoding_func);
+      vm_.push_back(vm);
+    }
 
     // parameter loading
     const PackedFunc* fload_params =
@@ -796,8 +827,6 @@ class LLMChatModule : public ModuleNode {
     ICHECK(fload_params) << "Cannot find env function vm.builtin.param_array_from_cache";
     params_ = (*fload_params)("param", -1);
 
-    // KV cache creation
-    kv_cache_ = vm_->GetFunction("create_kv_cache")();
     // Other system function
     // Get bos
   }
@@ -856,7 +885,7 @@ class LLMChatModule : public ModuleNode {
   NDArray Forward(NDArray inputs, int64_t cur_pos) {
     Array<ObjectRef> ret;
     if (inputs->shape[1] > 1) {
-      ret = encoding_func_(inputs, ShapeTuple({cur_pos}), kv_cache_, params_);
+      ret = encoding_func_[1](inputs, ShapeTuple({cur_pos}), kv_cache_, params_);
     } else {
       ret = decoding_func_(inputs, ShapeTuple({cur_pos}), kv_cache_, params_);
     }
@@ -971,9 +1000,9 @@ class LLMChatModule : public ModuleNode {
   // runtime device
   Device device_;
   // The vm module
-  Module vm_;
+  Array<Module> vm_;
   // encoding function
-  PackedFunc encoding_func_;
+  Array<PackedFunc> encoding_func_;
   // decoding function
   PackedFunc decoding_func_;
   // encoding without cache
@@ -988,9 +1017,10 @@ class LLMChatModule : public ModuleNode {
   NDArray logits_on_cpu_{nullptr};
 };
 
-tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
+tvm::runtime::Module CreateChatModule(Array<tvm::runtime::Module> executable,
                                       const tvm::runtime::String& tokenizer_path,
-                                      const tvm::runtime::String& param_path, DLDevice device) {
+                                      const Array<tvm::runtime::String> param_path,
+                                      DLDevice device) {
   ObjectPtr<LLMChatModule> n = make_object<LLMChatModule>();
   n->Init(executable, tokenizer_path, param_path, device);
   return Module(n);
@@ -998,8 +1028,10 @@ tvm::runtime::Module CreateChatModule(tvm::runtime::Module executable,
 
 // register as a system function that can be queried
 TVM_REGISTER_GLOBAL("mlc.llm_chat_create")
-    .set_body_typed([](tvm::runtime::Module executable, const tvm::runtime::String& tokenizer_path,
-                       const tvm::runtime::String& param_path, int device_type, int device_id) {
+    .set_body_typed([](Array<tvm::runtime::Module> executable,
+                       const tvm::runtime::String& tokenizer_path,
+                       const Array<tvm::runtime::String> param_path, int device_type,
+                       int device_id) {
       return CreateChatModule(executable, tokenizer_path, param_path,
                               DLDevice{static_cast<DLDeviceType>(device_type), device_id});
     });

@@ -5,6 +5,7 @@
  */
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 
 #ifndef MLC_LLM_DLL
 #ifdef _WIN32
@@ -22,9 +23,9 @@ namespace mlc {
 namespace llm {
 
 // explicit export via TVM_DLL
-MLC_LLM_DLL tvm::runtime::Module CreateChatModule(
-    tvm::runtime::Module executable,
-    const tvm::runtime::String& tokenizer_path,
-    const tvm::runtime::String& param_path, DLDevice device);
+MLC_LLM_DLL tvm::runtime::Module CreateChatModule(tvm::Array<tvm::runtime::Module> executable,
+                                                  const tvm::runtime::String& tokenizer_path,
+                                                  const tvm::Array<tvm::runtime::String> param_path,
+                                                  DLDevice device);
 }  // namespace llm
 }  // namespace mlc

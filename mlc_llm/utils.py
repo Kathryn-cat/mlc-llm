@@ -26,6 +26,7 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
             "RedPajama-INCITE-Chat-3B-v1",
             "RedPajama-INCITE-Instruct-3B-v1",
             "moss-moon-003-sft",
+            "minigpt4-7b",
         ],
     )
     args.add_argument(
@@ -48,7 +49,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     if args.model.startswith("vicuna-") or args.model.startswith("llama-"):
         args.conv_template = "vicuna_v1.1"
         args.model_category = "llama"
-    if args.model.startswith("dolly-"):
+    elif args.model.startswith("dolly-"):
         args.conv_template = "dolly"
         args.model_category = "gpt_neox"
     elif args.model.startswith("stablelm-"):
@@ -60,6 +61,9 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     elif args.model.startswith("moss-"):
         args.conv_template = "moss"
         args.model_category = "moss"
+    elif args.model.startswith("minigpt4-"):
+        args.conv_template = "minigpt"
+        args.model_category = "minigpt"
     else:
         raise ValueError(f"Model {args.model} not supported")
 
