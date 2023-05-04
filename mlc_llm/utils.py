@@ -21,6 +21,7 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
             "stablelm-tuned-alpha-3b",
             "stablelm-tuned-alpha-7b",
             "moss-moon-003-sft",
+            "minigpt4-7b",
         ],
     )
     args.add_argument(
@@ -58,6 +59,10 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         from mlc_llm.relax_model import moss  # pylint: disable=import-outside-toplevel
 
         args.conv_template = "moss"
+    elif args.model.startswith("minigpt4-"):
+        from mlc_llm.relax_model import minigpt
+
+        args.conv_template = "minigpt"
     else:
         raise ValueError(f"Model {args.model} not supportqed")
 
