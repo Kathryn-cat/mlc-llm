@@ -6,6 +6,7 @@ from typing import List
 
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import relax
 
 import mlc_llm
@@ -296,7 +297,7 @@ if __name__ == "__main__":
         mod = pickle.load(open(cache_path, "rb"))
     vm = build(mod, ARGS)
 
-    # TODO: for testing
+    # TODO: for testing correctness
     import torch
 
     torch.manual_seed(0)
@@ -306,6 +307,16 @@ if __name__ == "__main__":
 
     res = vm["encoding"](*args_tvm)
 
-    import pdb
+    print(f"res: {res}")
 
-    pdb.set_trace()
+    # apply tuning to get an optimized version
+    target = tvm.target.Target("nvidia/geforce-rtx-3090")
+    ms.relax_integration.tune_relax(
+        mod=mod,
+        target=target,
+        params={},
+        work_dir="tuned_minigpt4",
+        num_trials_per_iter=32,
+        max_trials_global=40000,
+        max_trials_per_task=8,
+    )
