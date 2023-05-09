@@ -6,6 +6,9 @@ from typing import List, Tuple
 
 import tvm
 import tvm.testing
+from PIL import Image
+from torchvision import transforms
+from torchvision.transforms.functional import InterpolationMode
 from tvm import meta_schedule as ms
 from tvm import relax
 
@@ -292,3 +295,23 @@ def parse_target(args: argparse.Namespace) -> None:
         }
         args.target = args.target.with_host("llvm -mtriple=x86_64-w64-windows-gnu")
         args.lib_format = "dll"
+
+
+def load_image(path: str, image_size: int = 224):
+    if isinstance(path, str):
+        mean = (0.48145466, 0.4578275, 0.40821073)
+        std = (0.26862954, 0.26130258, 0.27577711)
+        raw_image = Image.open(path).convert("RGB")
+        transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    (image_size, image_size), interpolation=InterpolationMode.BICUBIC
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std),
+            ]
+        )
+        image = transform(raw_image).unsqueeze(0)
+        return image
+
+    raise ValueError("image path is not a string.")
