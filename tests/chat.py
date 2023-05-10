@@ -36,6 +36,7 @@ def _parse_args():
     args.add_argument("--run-torch-model", action="store_true", default=False)
     parsed = args.parse_args()
     parsed.model_path = os.path.join(parsed.artifact_path, "models", parsed.model)
+    parsed.lib_path = os.path.join(parsed.artifact_path, "lib")
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, parsed.model, parsed.dtype
     )
@@ -174,7 +175,7 @@ def get_tvm_model(args):
     device = tvm.device(args.device_name)
     const_params = utils.load_params(args.artifact_path, device)
     ex = tvm.runtime.load_module(
-        f"{args.artifact_path}/{args.model}_{args.device_name}_{args.dtype}.so"
+        f"{args.lib_path}/{args.model}_{args.device_name}_{args.dtype}.so"
     )
     vm = relax.VirtualMachine(ex, device)
 

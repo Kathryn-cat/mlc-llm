@@ -124,14 +124,14 @@ def save_params(params: List[tvm.nd.NDArray], artifact_path: str) -> None:
     total_size = total_size / 1024.0 / 1024.0 / 1024.0
     print(f"Total param size: {total_size} GB")
     tvmjs.dump_ndarray_cache(
-        param_dict, f"{artifact_path}/params", meta_data=meta_data, encode_format="raw"
+        param_dict, f"{artifact_path}", meta_data=meta_data, encode_format="raw"
     )
 
 
 def load_params(artifact_path: str, device) -> List[tvm.nd.NDArray]:
     from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
 
-    params, meta = tvmjs.load_ndarray_cache(f"{artifact_path}/params", device)
+    params, meta = tvmjs.load_ndarray_cache(f"{artifact_path}", device)
     plist = []
     size = meta["ParamSize"]
     for i in range(size):
@@ -234,7 +234,7 @@ def parse_target(args: argparse.Namespace) -> None:
             args.system_lib = True
     elif args.target.startswith("android"):
         # android-opencl
-        from tvm.contrib import ndk, cc
+        from tvm.contrib import cc, ndk
 
         args.target = tvm.target.Target(
             "opencl",
