@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import time
 from typing import Callable
 
 import numpy as np
@@ -170,6 +171,10 @@ def chat(model_wrapper, args):
 
 
 def get_tvm_model(args):
+    cache_path = f"/tmp/kvcache-{args.quantization.name}"
+    if not os.path.exists(cache_path):
+        os.makedirs(cache_path)
+
     device = tvm.device(args.device_name)
     const_params = utils.load_params(args.artifact_path, device)
     ex = tvm.runtime.load_module(
@@ -210,7 +215,7 @@ def get_tvm_model(args):
                         f"max = {cache.max()}, mean = {cache.mean()}, std = {cache.std()}"
                     )
                     np.savez(
-                        f"/tmp/kvcache-{self.quantization.name}/{i}.npz", cache=cache
+                        f"/tmp/kvcache-{args.quantization.name}/{i}.npz", cache=cache
                     )
 
             return torch.from_numpy(logits.numpy())
@@ -223,9 +228,13 @@ def main():
     ARGS = _parse_args()
     if ARGS.debug_dump:
         torch.manual_seed(12)
+    # TODO: takes too long
+    start_time = time.time()
     tokenizer = AutoTokenizer.from_pretrained(
         ARGS.artifact_path, trust_remote_code=True
     )
+    end_time = time.time()
+    print(f"loading tokenizer takes: {end_time - start_time}")
     tokenizer.pad_token_id = tokenizer.eos_token_id
     if ARGS.model.startswith("dolly-"):
         # 50277 means "### End"
