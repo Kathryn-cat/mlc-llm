@@ -29,6 +29,7 @@ class Colors:
 def _parse_args():
     args = argparse.ArgumentParser()
     utils.argparse_add_common(args)
+    args.add_argument("--model", type=str, default="llama-7b-hf")
     args.add_argument("--device-name", type=str, default="auto")
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--artifact-path", type=str, default="dist")
