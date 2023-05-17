@@ -46,6 +46,7 @@ quantization_dict = {
 
 supported_model_types = set(["llama", "gpt_neox", "moss"])
 
+
 def argparse_add_common(args: argparse.ArgumentParser) -> None:
     args.add_argument(
         "--quantization",
@@ -57,14 +58,15 @@ def argparse_add_common(args: argparse.ArgumentParser) -> None:
         "--model-path",
         type=str,
         default=None,
-        help="Custom model path that contains params, tokenizer, and config"
+        help="Custom model path that contains params, tokenizer, and config",
     )
     args.add_argument(
         "--hf-path",
         type=str,
         default=None,
-        help="Hugging Face path from which to download params, tokenizer, and config from"
+        help="Hugging Face path from which to download params, tokenizer, and config from",
     )
+
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
     if hasattr(args, "device_name"):
@@ -90,6 +92,9 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
     elif args.model.startswith("moss-"):
         args.conv_template = "moss"
         args.model_category = "moss"
+    elif args.model.startswith("minigpt4-"):
+        args.conv_template = "minigpt"
+        args.model_category = "minigpt"
     else:
         raise ValueError(f"Model {args.model} not supported")
     args.quantization = quantization_dict[args.quantization]
@@ -272,7 +277,7 @@ def parse_target(args: argparse.Namespace) -> None:
             args.system_lib = True
     elif args.target.startswith("android"):
         # android-opencl
-        from tvm.contrib import ndk, cc
+        from tvm.contrib import cc, ndk
 
         args.target = tvm.target.Target(
             "opencl",
