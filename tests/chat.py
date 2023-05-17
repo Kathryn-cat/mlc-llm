@@ -233,6 +233,31 @@ def get_tvm_model(args):
     return model.forward
 
 
+def get_tvm_model_vision(args):
+    device = tvm.device(args.device_name)
+    const_params = utils.load_params(args.vision_artifact_path, device)
+    ex = tvm.runtime.load_module(
+        os.path.join(
+            args.vision_artifact_path,
+            f"{args.vision_model}-{args.quantization.name}-{args.device_name}.so",
+        )
+    )
+    vm = relax.VirtualMachine(ex, device)
+
+    class Model:
+        def __init__(self, args) -> None:
+            self.args = args
+
+        def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+            inputs = tvm.nd.array(inputs.numpy(), device=device)
+            image_embed = vm["encoding"](inputs, const_params)
+
+            return torch.from_numpy(image_embed.numpy())
+
+    model = Model(args)
+    return model.forward
+
+
 def main():
     ARGS = _parse_args()
     if ARGS.debug_dump:
@@ -247,6 +272,13 @@ def main():
     if ARGS.model.startswith("dolly-"):
         # 50277 means "### End"
         tokenizer.eos_token_id = 50277
+
+    vision_model = None
+    if ARGS.vision_model != "":
+        vision_model = get_tvm_model_vision(ARGS)
+        import pdb
+
+        pdb.set_trace()
     model = ModelWrapper(get_tvm_model(ARGS), tokenizer, ARGS)
     chat(model, ARGS)
 
