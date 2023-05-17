@@ -30,15 +30,25 @@ def _parse_args():
     args = argparse.ArgumentParser()
     utils.argparse_add_common(args)
     args.add_argument("--model", type=str, default="llama-7b-hf")
+    args.add_argument("--vision_model", type=str, default="")
     args.add_argument("--device-name", type=str, default="auto")
     args.add_argument("--debug-dump", action="store_true", default=False)
     args.add_argument("--artifact-path", type=str, default="dist")
     args.add_argument("--max-gen-len", type=int, default=2048)
     parsed = args.parse_args()
     utils.argparse_postproc_common(parsed)
+    if parsed.vision_model != "":
+        parsed.vision_artifact_path = os.path.join(
+            parsed.artifact_path, f"{parsed.vision_model}-{parsed.quantization.name}"
+        )
+    else:
+        parsed.vision_artifact_path = None
     parsed.artifact_path = os.path.join(
         parsed.artifact_path, f"{parsed.model}-{parsed.quantization.name}"
     )
+    if parsed.vision_model.startswith("minigpt4-"):
+        parsed.vision_conv_template = "minigpt"
+        parsed.vision_model_category = "minigpt"
     return parsed
 
 
