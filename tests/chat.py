@@ -2,13 +2,12 @@
 
 import argparse
 import os
-import time
 from typing import Callable
 
 import numpy as np
 import torch
 import tvm
-from transformers import AutoTokenizer  # type: ignore[import]
+from transformers import AutoTokenizer, LlamaTokenizer  # type: ignore[import]
 from tvm import relax
 
 from mlc_llm import utils
@@ -228,13 +227,12 @@ def main():
     ARGS = _parse_args()
     if ARGS.debug_dump:
         torch.manual_seed(12)
-    # TODO: takes too long
-    start_time = time.time()
-    tokenizer = AutoTokenizer.from_pretrained(
-        ARGS.artifact_path, trust_remote_code=True
-    )
-    end_time = time.time()
-    print(f"loading tokenizer takes: {end_time - start_time}")
+    if ARGS.model.startswith("llama-"):
+        tokenizer = LlamaTokenizer.from_pretrained(ARGS.artifact_path)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(
+            ARGS.artifact_path, trust_remote_code=True
+        )
     tokenizer.pad_token_id = tokenizer.eos_token_id
     if ARGS.model.startswith("dolly-"):
         # 50277 means "### End"
