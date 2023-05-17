@@ -1,4 +1,5 @@
 import math
+import os
 from dataclasses import dataclass
 
 import torch
@@ -473,18 +474,14 @@ def create_encoding_func(bb: relax.BlockBuilder, config: MiniGPTConfig) -> None:
 
 
 def get_model(args):
-    import pdb
-
-    pdb.set_trace()
     model_name = args.model
-    model_path = args.model_path
+    model_path = os.path.join(args.model_path, args.model)
 
     if model_name.startswith("minigpt4-"):
         config = MiniGPTConfig(**MODEL_CONFIG[model_name])
         # build the relax model
         bb = relax.BlockBuilder()
         create_encoding_func(bb, config)
-        # TODO: in the future, do we have to add decode, kv_cache?
         mod = bb.get()
 
         from ..download_weights import download_cached_file

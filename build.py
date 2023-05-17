@@ -147,12 +147,15 @@ def mod_transform_before_build(
     args: argparse.Namespace,
 ) -> tvm.IRModule:
     """First-stage: Legalize ops and trace"""
-    model_names = [
-        "encoding",
-        "decoding",
-        "create_kv_cache",
-        "softmax_with_temperature",
-    ]
+    if args.model.startswith("minigpt4-"):
+        model_names = ["encoding"]
+    else:
+        model_names = [
+            "encoding",
+            "decoding",
+            "create_kv_cache",
+            "softmax_with_temperature",
+        ]
 
     if args.quantization.mode != "no":
         mod = mlc_llm.transform.GroupQuantize(
@@ -276,6 +279,9 @@ if __name__ == "__main__":
             else:
                 raise ValueError(f"Model {ARGS.model} not supported")
             mod = mod_transform_before_build(mod, params, ARGS)
+            import pdb
+
+            pdb.set_trace()
             with open(cache_path, "wb") as outfile:
                 pickle.dump(mod, outfile)
             print(f"Save a cached module to {cache_path}.")
