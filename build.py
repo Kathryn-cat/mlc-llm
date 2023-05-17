@@ -212,9 +212,10 @@ def build(mod_deploy: tvm.IRModule, args: argparse.Namespace) -> None:
             mod_deploy = relax.transform.MetaScheduleApplyDatabase()(mod_deploy)
             if args.target_kind == "android":
                 mod_deploy = mlc_llm.dispatch.DispatchTIROperatorAdreno()(mod_deploy)
-            mod_deploy = mlc_llm.dispatch.DispatchTIROperator(args.model_category)(
-                mod_deploy
-            )
+            if not args.model.startswith("minigpt4-"):
+                mod_deploy = mlc_llm.dispatch.DispatchTIROperator(args.model_category)(
+                    mod_deploy
+                )
             mod_deploy = tvm.tir.transform.DefaultGPUSchedule()(mod_deploy)
             mod_deploy = tvm.tir.transform.ForceNarrowIndexToInt32()(mod_deploy)
 
@@ -279,9 +280,6 @@ if __name__ == "__main__":
             else:
                 raise ValueError(f"Model {ARGS.model} not supported")
             mod = mod_transform_before_build(mod, params, ARGS)
-            import pdb
-
-            pdb.set_trace()
             with open(cache_path, "wb") as outfile:
                 pickle.dump(mod, outfile)
             print(f"Save a cached module to {cache_path}.")
