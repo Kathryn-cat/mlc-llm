@@ -164,7 +164,7 @@ def chat(model_wrapper, args):
         )
 
         conv.messages[-1][-1] = " ".join(outputs)
-        if "vicuna" in args.model:
+        if "vicuna" or "llama" in args.model:
             keep_first_token = False
         print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
 
