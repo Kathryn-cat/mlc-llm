@@ -51,7 +51,9 @@ quantization_dict = {
     ),
 }
 
-supported_model_types = set(["llama", "gpt_neox", "gpt_bigcode", "moss", "rwkv"])
+supported_model_types = set(
+    ["llama", "gpt_neox", "gpt_bigcode", "minigpt", "moss", "rwkv"]
+)
 
 
 def argparse_postproc_common(args: argparse.Namespace) -> None:
@@ -75,6 +77,7 @@ def argparse_postproc_common(args: argparse.Namespace) -> None:
         "moss-": ("moss", "moss"),
         "open_llama": ("LM", "llama"),
         "rwkv-": ("rwkv", "rwkv"),
+        "minigpt4-": ("minigpt", "minigpt"),
         "gorilla-": ("gorilla", "llama"),
         "starcoder": ("code_gpt", "gpt_bigcode"),
         "wizardcoder-": ("code_gpt", "gpt_bigcode"),
@@ -572,7 +575,9 @@ def parse_target(args: argparse.Namespace) -> None:
         args.lib_format = "wasm"
         args.system_lib = True
         if os.environ.get("TVM_HOME", "") == "":
-            raise RuntimeError("Please set TVM_HOME for webgpu build following scripts/prep_emcc_deps.sh")
+            raise RuntimeError(
+                "Please set TVM_HOME for webgpu build following scripts/prep_emcc_deps.sh"
+            )
     elif args.target in ["android", "android-dylib"]:  # android-opencl
         from tvm.contrib import ndk, tar
 
