@@ -120,7 +120,8 @@ class ChatModule:
         self.reload_func(lib, model_path, app_config_json)
 
     def unload_chat_module(self):
-        pass
+        r"""Low-level function. Unload the chat module and clear the global memory."""
+        self.unload_func()
 
     def evaluate(self):
         """Low-level function. For testing purposes only."""
