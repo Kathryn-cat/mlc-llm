@@ -1,5 +1,6 @@
-from .chat_module import ChatModule, quantization_keys
+from .chat_module import ChatModule
 from .interface.openai_api import *
+from .utils import quantization_keys
 
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
@@ -13,6 +14,7 @@ import os
 import asyncio
 
 session = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -152,26 +154,18 @@ async def request_completion(request: CompletionRequest):
         session["chat_mod"].decode()
         msg = session["chat_mod"].get_message()
     return CompletionResponse(
-        choices=[
-            CompletionResponseChoice(
-                index=0,
-                text=msg
-            )
-        ],
+        choices=[CompletionResponseChoice(index=0, text=msg)],
         # TODO: Fill in correct usage info
-        usage=UsageInfo(
-            prompt_tokens=0,
-            completion_tokens=0,
-            total_tokens=0
-        )
+        usage=UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
     )
+
 
 @app.post("/v1/embeddings")
 async def request_embeddings(request: EmbeddingsRequest):
     """
     Gets embedding for some text.
     """
-    assert("Endpoint not implemented.")
+    assert "Endpoint not implemented."
 
 
 @app.post("/chat/reset")
