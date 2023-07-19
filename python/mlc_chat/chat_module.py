@@ -221,8 +221,14 @@ class ChatModule:
         """
         return self.get_message_func()
 
-    def get_chat_module_runtime_stats(self):
-        pass
+    def get_chat_module_runtime_stats(self) -> str:
+        r"""Low-level function. Get the prefilling speed, decoding speed (and optionally embedding speed).
+
+        Returns
+        -------
+        runtime_stats : str
+        """
+        return self.runtime_stats_text_func()
 
     def reset_chat_module_runtime_stats(self):
         r"""Low-level function. Reset the runtime stats."""
