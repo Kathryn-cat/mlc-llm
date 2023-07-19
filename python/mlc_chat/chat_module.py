@@ -152,14 +152,15 @@ class ChatModule:
     def prefill_with_embed(
         self, embedding: tvm.runtime.NDArray, decode_next_token: bool = True
     ):
-        r"""Low-level function. Given an embedding, run the prefill stage and optionally decode the first output token.
+        r"""Low-level function. Given an embedding of a text, image etc, run the prefill stage and
+        optionally decode the next output token.
 
         Parameters
         ----------
         embedding : tvm.runtime.NDArray
-            The embedding of user input.
+            The embedding of a text, image etc.
         decode_next_token : bool
-            Whether to decode the next token after prefilling.
+            Whether to decode the next output token after prefilling.
         """
         self.prefill_with_embed_func(embedding, decode_next_token)
 
