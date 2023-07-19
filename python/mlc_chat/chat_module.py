@@ -248,16 +248,17 @@ class ChatModule:
         self.process_system_prompts_func()
 
     def reload_image_module(self, lib: str, model_path: str):
-        r"""Low-level function. Reload the image module from the given library and model path.
+        r"""Low-level function. Reload the image module as part of a multimodal model
+        from the given compiled executable and model path.
 
         Parameters
         ----------
-        lib : str
-            The library path.
+        lib : tvm.runtime.Module
+            The compiled executable of the image model.
         model_path : str
-            The model path.
+            The path to the model parameter folder.
         """
-        self.reload_func(lib, model_path)
+        self.image_reload_func(lib, model_path)
 
     def unload_image_module(self):
         pass
