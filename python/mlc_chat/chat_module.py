@@ -165,7 +165,7 @@ class ChatModule:
         self.prefill_with_embed_func(embedding, decode_next_token)
 
     def decode(self):
-        r"""Low-level function. Decode the next token, the decoding result is stored in a buffer and
+        r"""Low-level function. Decode the next output token. The decoding result is stored in a buffer and
         can be retrieved by :func:`get_message`.
         """
         self.decode_func()
