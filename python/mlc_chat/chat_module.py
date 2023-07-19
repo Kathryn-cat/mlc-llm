@@ -175,8 +175,8 @@ class ChatModule:
 
         Note
         ----
-        The model remains the same after :func:`reset_chat`.
-        To reload module, please use :func:`reload` instead.
+        The LLM model remains the same after :func:`reset_chat`.
+        To reload chat module, please use :func:`reload` instead.
         """
         self.reset_chat_func()
 
