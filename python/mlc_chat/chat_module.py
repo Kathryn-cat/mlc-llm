@@ -231,7 +231,7 @@ class ChatModule:
         return self.runtime_stats_text_func()
 
     def reset_chat_module_runtime_stats(self):
-        r"""Low-level function. Reset the runtime stats."""
+        r"""Low-level function. Reset the runtime stats for the chat module."""
         self.reset_runtime_stats_func()
 
     def get_chat_module_config_json(self):
