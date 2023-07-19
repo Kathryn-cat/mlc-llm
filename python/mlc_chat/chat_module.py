@@ -181,11 +181,21 @@ class ChatModule:
         self.reset_chat_func()
 
     def get_role_0(self) -> str:
-        r"""Low-level function. Get the name of the first role in the conversation."""
+        r"""Low-level function. Get the name of the first role in the conversation.
+
+        Returns
+        -------
+        role_0_name : str
+        """
         return self.get_role0_func()
 
     def get_role_1(self) -> str:
-        r"""Low-level function. Get the name of the second role in the conversation."""
+        r"""Low-level function. Get the name of the second role in the conversation.
+
+        Returns
+        -------
+        role_1_name : str
+        """
         return self.get_role1_func()
 
     def stopped(self) -> bool:
