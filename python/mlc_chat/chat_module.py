@@ -133,17 +133,19 @@ class ChatModule:
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
     ):
-        r"""Low-level function. Run prefill stage for a given input and optionally decode the first output token.
+        r"""Low-level function. Run prefill stage for a given text input and optionally decode the next output token.
         User can decide where to place the input in the prompt.
 
         Parameters
         ----------
         input : str
-            The user input string.
+            The user input message.
         decode_next_token : bool
-            Whether to decode the next token after prefilling.
+            Whether to decode the next output token after prefilling.
         place_in_prompt: PlaceInPrompt
             The place of the input message in the prompt.
+            Choose from PlaceInPrompt.All, PlaceInPrompt.Begin, PlaceInPrompt.Middle, PlaceInPrompt.End.
+            See the documentation in `class PlaceInPrompt`.
         """
         self.prefill_func(input, decode_next_token, place_in_prompt.value)
 
