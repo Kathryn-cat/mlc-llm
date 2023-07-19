@@ -124,7 +124,7 @@ class ChatModule:
         self.unload_func()
 
     def evaluate(self):
-        """Low-level function. For testing purposes only."""
+        """Low-level function. Perform a quick evaluation of the chatting pipeline, for debugging purpose only."""
         self.evaluate_func()
 
     def prefill(
