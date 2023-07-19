@@ -247,9 +247,12 @@ class ChatModule:
         r"""Low-level function. Pre-process by prefilling the system prompts, running prior to any user input."""
         self.process_system_prompts_func()
 
-    def reload_image_module(self, lib: str, model_path: str):
+    def reload_image_module(
+        self, lib: str, model_path: str, clear_global_memory: bool = False
+    ):
         r"""Low-level function. Reload the image module as part of a multimodal model
-        from the given compiled executable and model path.
+        from the given compiled executable and model path, and optionally specify
+        whether to clear the global memory of previously loaded modules.
 
         Parameters
         ----------
@@ -257,11 +260,23 @@ class ChatModule:
             The compiled executable of the image model.
         model_path : str
             The path to the model parameter folder.
-        """
-        self.image_reload_func(lib, model_path)
+        clear_global_memory : bool
+            If specified as True, it will clear all global memory (the previously loaded
+            chat module, image module etc, if any).
 
-    def unload_image_module(self):
-        pass
+        Note
+        ----
+        1) If you plan to use only the image module itself upon loading, you should set
+           `clear_global_memory = True`.
+        2) If you plan to use the image module together with a chat module, make sure you
+           have loaded the chat module prior to the image module (since the chat module
+           would perform clear global memory by default), and set `clear_global_memory = False`.
+        """
+        self.image_reload_func(lib, model_path, clear_global_memory)
+
+    def unload_image_module(self, clear_global_memory: bool = False):
+        r"""Low-level function. Unload the image module and clear the global memory."""
+        self.unload_func(clear_global_memory)
 
     def reset_image_module(self):
         r"""Low-level function. Reset the image module, clear its performance record.

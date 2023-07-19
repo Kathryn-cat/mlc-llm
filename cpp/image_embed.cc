@@ -142,15 +142,25 @@ class LLMImage {
  */
 class LLMImageModule : public ModuleNode {
  public:
+  // clear global memory manager
+  static void ClearGlobalMemoryManager() {
+    // Step 0. Clear the previously allocated memory.
+    const PackedFunc* fclear_memory_manager =
+        tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
+    ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
+    (*fclear_memory_manager)();
+  }
+
   // overrides
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "reload") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+        ICHECK(2 <= args.size() && args.size() <= 3);
         image_mod_ = nullptr;
-        // we do not call ClearGlobalMemoryManager() here, please make sure to call reload image
-        // model after reload LLM, since ClearGlobalMemoryManager() will be called there
+        if (args.size() == 3 && args[2]) {
+          ClearGlobalMemoryManager();
+        }
         image_mod_ = std::make_unique<LLMImage>(LLMImage(device_));
-        ICHECK_EQ(args.size(), 2);
         image_mod_->Reload(args[0], args[1]);
       });
     } else if (name == "unload") {
