@@ -234,8 +234,14 @@ class ChatModule:
         r"""Low-level function. Reset the runtime stats for the chat module."""
         self.reset_runtime_stats_func()
 
-    def get_chat_module_config_json(self):
-        pass
+    def get_chat_module_config_json(self) -> str:
+        r"""Low-level function. Get the config of the chat model in a single json string.
+
+        Returns
+        -------
+        config : str
+        """
+        return self.get_config_json_func()
 
     def process_system_prompts(self):
         r"""Low-level function. Pre-process by prefilling the system prompts, running prior to any user input."""
