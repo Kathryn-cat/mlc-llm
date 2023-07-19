@@ -182,11 +182,11 @@ class ChatModule:
 
     def get_role_0(self) -> str:
         r"""Low-level function. Get the name of the first role in the conversation."""
-        return self.get_role_0()
+        return self.get_role0_func()
 
     def get_role_1(self) -> str:
         r"""Low-level function. Get the name of the second role in the conversation."""
-        return self.get_role_1()
+        return self.get_role1_func()
 
     def stopped(self) -> bool:
         r"""Low-level function. Check if the stop condition is met for the current round.
