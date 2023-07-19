@@ -105,7 +105,7 @@ class ChatModule:
     def reload_chat_module(
         self, lib: tvm.runtime.Module, model_path: str, app_config_json: str = ""
     ):
-        r"""Low-level function. Reload the chat module from the given library and model path,
+        r"""Low-level function. Reload the chat module from the given compiled executable and model path,
         and optionally overwrite the json configuration.
 
         Parameters
