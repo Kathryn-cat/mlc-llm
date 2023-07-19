@@ -60,7 +60,7 @@ class ChatModule:
             setattr(self, "image_" + func_name + "_func", image_mod[func_name])
 
     def generate(self):
-        """High-level function."""
+        r"""High-level function."""
 
     def get_text_embedding(
         self,
@@ -124,7 +124,7 @@ class ChatModule:
         self.unload_func()
 
     def evaluate(self):
-        """Low-level function. Perform a quick evaluation of the chatting pipeline, for debugging purpose only."""
+        r"""Low-level function. Perform a quick evaluation of the chatting pipeline, for debugging purpose only."""
         self.evaluate_func()
 
     def prefill(
@@ -180,11 +180,13 @@ class ChatModule:
         """
         self.reset_chat_func()
 
-    def get_role_0(self):
-        pass
+    def get_role_0(self) -> str:
+        r"""Low-level function. Get the name of the first role in the conversation."""
+        return self.get_role_0()
 
-    def get_role_1(self):
-        pass
+    def get_role_1(self) -> str:
+        r"""Low-level function. Get the name of the second role in the conversation."""
+        return self.get_role_1()
 
     def stopped(self) -> bool:
         r"""Low-level function. Check if the stop condition is met for the current round.
